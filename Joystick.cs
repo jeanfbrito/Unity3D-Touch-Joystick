@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+
 //////////////////////////////////////////////////////////////
 // Joystick.js
 // Penelope iPhone Tutorial
@@ -13,9 +14,9 @@ using System.Collections;
 // to touch down at any point and it tracks the movement relatively 
 // without moving the graphic
 //////////////////////////////////////////////////////////////
-// A simple class for bounding how far the GUITexture will move
 // converted to CS by Aaron Blohowiak, Aug 2009
 
+// A simple class for bounding how far the GUITexture will move
 public class Boundary 
 
 {	
@@ -26,27 +27,44 @@ public class Boundary
 public class Joystick : MonoBehaviour{ 
     static private Joystick[] joysticks;                    // A static collection of all joysticks
     static private bool enumeratedJoysticks=false;
-    static private float tapTimeDelta = 0.3f;               // Time allowed between taps
+    static private float tapTimeDelta = 0.1f;               // Time allowed between taps
     public bool touchPad;                                   // Is this a TouchPad?
+	public float touchPadPressed = 0.15f;
+	public float touchPadReleased = 0.025f;
     public Rect touchZone;
-    public Vector2 deadZone = Vector2.zero;                     // Control when position is output
+	public float maximumOffset = 0.5f;
+    public Vector2 deadZone = Vector2.zero;                 // Control when position is output
     public bool normalize = false;                          // Normalize output after the dead-zone?
-    public Vector2 position;                                    // [-1, 1] in x,y
-    public int tapCount;                                            // Current tap count
-    private int lastFingerId = -1;                              // Finger last used for this joystick
+	public bool roundVertical = false;                          	// Round, prevents slow motion
+	public bool roundHorizontal = false;                          	// Round, prevents slow motion
+	public float roundThreshold = 0.5f;
+    public Vector2 position;                                // [-1, 1] in x,y
+    public int tapCount;                                    // Current tap count
+    private int lastFingerId = -1;                          // Finger last used for this joystick
     private float tapTimeWindow;                            // How much time there is left for a tap to occur
     private Vector2 fingerDownPos;
     private float fingerDownTime;
     private float firstDeltaTime = 0.5f;
     private GUITexture gui;                             // Joystick graphic
-    private Rect defaultRect;                               // Default position / extents of the joystick graphic
-    private Boundary guiBoundary = new Boundary();          // Boundary for joystick graphic
+    private Rect defaultRect;                           // Default position / extents of the joystick graphic
+    private Boundary guiBoundary = new Boundary();      // Boundary for joystick graphic
     private Vector2 guiTouchOffset;                     // Offset to apply to touch input
     private Vector2 guiCenter;                          // Center of joystick
     private Vector3 tmpv3;
     private Rect tmprect;
     private Color tmpclr;
-
+	
+	float RoundPosition(float position){
+		if(position > 0 && position > roundThreshold)
+			position = 1;
+		else if (position < 0 && position < -roundThreshold)
+			position = -1;
+		else
+			position = 0;
+		
+		return position;
+	}
+	
     public void Start()
     {
         // Cache this component at startup instead of looking up every frame    
@@ -65,8 +83,8 @@ public class Joystick : MonoBehaviour{
         {               
             // This is an offset for touch input to match with the top left
             // corner of the GUI
-            guiTouchOffset.x = defaultRect.width * 0.5f;
-            guiTouchOffset.y = defaultRect.height * 0.5f;
+            guiTouchOffset.x = defaultRect.width * maximumOffset; //0.5f;
+            guiTouchOffset.y = defaultRect.height * maximumOffset; //0.5f;
             
             // Cache the center of the GUI, since it doesn't change
             guiCenter.x = defaultRect.x + guiTouchOffset.x;
@@ -96,7 +114,7 @@ public class Joystick : MonoBehaviour{
 
         if ( touchPad ){
             tmpclr  = gui.color;
-            tmpclr.a = 0.025f;
+            tmpclr.a = touchPadReleased;
             gui.color = tmpclr;
         }   
     }
@@ -158,7 +176,7 @@ public class Joystick : MonoBehaviour{
                     if ( touchPad )
                     {
                         tmpclr = gui.color;
-                        tmpclr.a = 0.15f;
+                        tmpclr.a = touchPadPressed;
                         gui.color = tmpclr;
                         lastFingerId = touch.fingerId;
                         fingerDownPos = touch.position;
@@ -229,7 +247,13 @@ public class Joystick : MonoBehaviour{
             // Report the joystick as being at the center if it is within the dead zone
             position.x = 0;
         }
-        else if ( normalize )
+        else if ( normalize && roundHorizontal )
+        {
+            // Rescale the output after taking the dead zone into account
+			var posx = Mathf.Sign( position.x ) * ( absoluteX - deadZone.x ) / ( 1 - deadZone.x );
+            position.x = RoundPosition(posx);
+        }
+		else if ( normalize )
         {
             // Rescale the output after taking the dead zone into account
             position.x = Mathf.Sign( position.x ) * ( absoluteX - deadZone.x ) / ( 1 - deadZone.x );
@@ -239,6 +263,12 @@ public class Joystick : MonoBehaviour{
         {
             // Report the joystick as being at the center if it is within the dead zone
             position.y = 0;
+        }
+		else if ( normalize && roundVertical )
+        {
+            // Rescale the output after taking the dead zone into account
+			var posy = Mathf.Sign( position.y ) * ( absoluteY - deadZone.y ) / ( 1 - deadZone.y );
+            position.y = RoundPosition(posy);
         }
         else if ( normalize )
         {
